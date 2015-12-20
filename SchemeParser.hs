@@ -1,8 +1,7 @@
-module Main where
+module SchemeParser(LispVal(..), parseExpr) where
 
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
-import System.Environment
 import Debug.Trace
 import Numeric (readHex, readOct)
 import Data.Char (toLower, toUpper)
@@ -15,7 +14,6 @@ data LispVal =  Atom String
               | String String
               | Bool Bool 
               | Char Char
-              deriving Show 
 
 symbol :: Parser Char
 symbol = oneOf "!$%&*+-./:<=>?@^_~"
@@ -23,10 +21,6 @@ symbol = oneOf "!$%&*+-./:<=>?@^_~"
 spaces :: Parser ()
 spaces = skipMany1 space
 
-readExpr :: String -> String
-readExpr input = case parse (parseExpr <* eof) "lisp" input of
-    Left err -> "No match: " ++ show err
-    Right val -> "Found value: " ++ show val
 
 {-- Character parsing, including special named chars --}
 parseChar :: Parser LispVal
@@ -125,14 +119,11 @@ parseQuoted = char '\'' >> parseExpr >>= \x -> return $ List [Atom "quote", x]
 
 parseExpr :: Parser LispVal
 parseExpr = parseAtom 
+        <|> parseQuoted
         <|> parseString 
         <|> try parseNumber 
         <|> try parseChar
         <|> ( char '(' >> (try parseList <|> parseDottedList) >>= \x -> char ')' 
               >> return x )
 
-main :: IO ()
-main = do
-    (expr:_) <- getArgs
-    putStrLn (readExpr expr)
 
