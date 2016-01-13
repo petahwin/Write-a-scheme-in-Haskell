@@ -65,10 +65,15 @@ parseAtom = do
     first <- letter <|> symbol
     rest <- many (letter <|> digit <|> symbol)
     let atom = first:rest
-    return $ case atom of
-        "#t" -> Bool True
-        "#f" -> Bool False
-        _    -> Atom atom
+    return $ Atom atom
+--    return $ case atom of
+--        "#t" -> Bool True
+--        "#f" -> Bool False
+--        _    -> Atom atom
+
+parseBool :: Parser LispVal
+parseBool = char '#' >> (char 't' <|> char 'f') >>= 
+                \x -> return $ if x == 't' then Bool True else Bool False
 
 {-- ALL NUMERIC PARSERS --}
 parseNumber :: Parser LispVal
@@ -121,9 +126,9 @@ parseExpr :: Parser LispVal
 parseExpr = parseAtom 
         <|> parseQuoted
         <|> parseString 
+        <|> try parseBool -- is this cheating? Is this too easy or inelegant?
         <|> try parseNumber 
         <|> try parseChar
         <|> ( char '(' >> (try parseList <|> parseDottedList) >>= \x -> char ')' 
               >> return x )
-
 
