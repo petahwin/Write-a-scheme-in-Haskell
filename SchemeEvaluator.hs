@@ -1,7 +1,7 @@
 module Main where
 import System.IO
 import System.Environment
-import Control.Monad.Error
+import Control.Monad.Except
 import Data.IORef
 import Text.ParserCombinators.Parsec
 
@@ -12,14 +12,14 @@ type Env = IORef [(String, IORef LispVal)]
 nullEnv :: IO Env
 nullEnv = newIORef []
 
-type IOThrowsError = ErrorT LispError IO
+type IOThrowsError = ExceptT LispError IO
 
 liftThrows :: ThrowsError a -> IOThrowsError a
 liftThrows (Left err) = throwError err
 liftThrows (Right val) = return val
 
 runIOThrows :: IOThrowsError String -> IO String
-runIOThrows action = runErrorT (trapError action) >>= return . extractValue
+runIOThrows action = runExceptT (trapError action) >>= return . extractValue
 
 isBound :: Env -> String -> IO Bool
 isBound envRef var = readIORef envRef >>= return . maybe False (const True) .
@@ -75,9 +75,9 @@ showError (TypeMismatch expected found) = "Invalid type: expected " ++ expected
 showError (Parser parseErr) = "Parse error at" ++ show parseErr
 
 instance Show LispError where show = showError
-instance Error LispError where
-    noMsg = Default "An error has occurred"
-    strMsg = Default
+-- instance Error LispError where
+--     noMsg = Default "An error has occurred"
+--     strMsg = Default
 
 type ThrowsError = Either LispError
 trapError action = catchError action (return . show)
