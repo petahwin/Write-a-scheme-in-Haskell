@@ -5,15 +5,7 @@ import Control.Monad
 import Debug.Trace
 import Numeric (readHex, readOct)
 import Data.Char (toLower, toUpper)
-
-data LispVal =  Atom String
-              | List [LispVal] -- proper list
-              | DottedList [LispVal] LispVal -- (a b . c), improper list, last elem as
-                                             -- different field
-              | Number Integer
-              | String String
-              | Bool Bool 
-              | Char Char
+import Defs
 
 symbol :: Parser Char
 symbol = oneOf "!$%&*+-./:<=>?@^_~"
