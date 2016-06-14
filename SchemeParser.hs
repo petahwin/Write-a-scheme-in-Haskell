@@ -19,10 +19,10 @@ parseChar :: Parser LispVal
 parseChar = string "#\\" >> (try parseCharName <|> anyChar) >>= return . Char
                
 parseCharName :: Parser Char
-parseCharName = do s <- try (string_insen "space" <|> string_insen "newline")
-                   return $ case s of 
-                                "space" -> ' '
-                                "newline" -> '\n'      
+parseCharName = try (string_insen "space" <|> string_insen "newline") >>= \s ->
+                return $ case s of 
+                             "space" -> ' '
+                             "newline" -> '\n'      
 
 char_insen :: Char -> Parser Char
 char_insen c = (char $ toUpper c) <|> (char $ toLower c)
@@ -33,31 +33,27 @@ string_insen (c:cs) = char_insen c >> string_insen cs >> return (c:cs)
 
 {-- General string parsing --}
 parseString :: Parser LispVal
-parseString = do
-    char '"'
-    x <- many (parseEscape <|> noneOf ['\"'])
-    char '"'
-    return $ String x
+parseString = char '"' >>
+              many (parseEscape <|> noneOf ['\"']) >>= \x ->
+              char '"' >> (return $ String x)
 
 parseEscape :: Parser Char
-parseEscape = do char '\\'
-                 c <- oneOf ['"', '\\', 'n', 'r', 't']
-                 return $ case c of
-                              'n' -> '\n'
-                              'r' -> '\r'
-                              't' -> '\t'
-                              otherwise -> c
+parseEscape = char '\\' >>
+              oneOf ['"', '\\', 'n', 'r', 't'] >>= \c ->
+              return $ case c of
+                           'n' -> '\n'
+                           'r' -> '\r'
+                           't' -> '\t'
+                           otherwise -> c
 
 {-- I guess atoms are like identifiers??? --}
 
 -- (<|>) is a parser combinator that "short-circuits"; tries the first parser,
 -- and if it fails, then tries the second one; the operator is def'd in Parsec
 parseAtom :: Parser LispVal
-parseAtom = do
-    first <- letter <|> symbol
-    rest <- many (letter <|> digit <|> symbol)
-    let atom = first:rest
-    return $ Atom atom
+parseAtom = (letter <|> symbol)                >>= \first ->
+            many (letter <|> digit <|> symbol) >>= \rest  ->
+            let atom = first:rest in return $ Atom atom
 --    return $ case atom of
 --        "#t" -> Bool True
 --        "#f" -> Bool False
@@ -89,24 +85,23 @@ parseDecimal :: Parser LispVal
 parseDecimal = char 'd' >> parseBasicNumber
 
 parseHex :: Parser LispVal
-parseHex = do char 'x'
-              x <- many1 $ oneOf "0123456789abcdefABCDEF"
-              return . Number . (readWith readHex) $ x 
+parseHex = char 'x' >>
+           (many1 $ oneOf "0123456789abcdefABCDEF") >>= 
+           return . Number . (readWith readHex)
 
 parseOct :: Parser LispVal
-parseOct = do char 'o'
-              o <- many1 $ oneOf "01234567"
-              return . Number . (readWith readOct) $ o
+parseOct = char 'o' >>
+           (many1 $ oneOf "01234567") >>=
+           return . Number . (readWith readOct)
 
 {-- (Dotted) List parsing --}
 parseList :: Parser LispVal
 parseList = fmap List $ sepBy parseExpr spaces
 
 parseDottedList :: Parser LispVal
-parseDottedList = do
-    head <- endBy parseExpr spaces
-    tail <- char '.' >> spaces >> parseExpr
-    return $ DottedList head tail
+parseDottedList = endBy parseExpr spaces >>= \head ->
+                  (char '.' >> spaces >> parseExpr) >>=
+                  return . (DottedList head)
 
 {-- Scheme symbols (NOT identifiers, but like Ruby symbols) --}
 parseQuoted :: Parser LispVal
