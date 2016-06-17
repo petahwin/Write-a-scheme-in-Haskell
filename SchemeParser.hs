@@ -1,18 +1,17 @@
-module SchemeParser(LispVal(..), parseExpr) where
+module SchemeParser(parseExpr) where
 
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
 import Debug.Trace
 import Numeric (readHex, readOct)
 import Data.Char (toLower, toUpper)
-import Defs
+import Defs (LispVal(..))
 
 symbol :: Parser Char
 symbol = oneOf "!$%&*+-./:<=>?@^_~"
 
 spaces :: Parser ()
 spaces = skipMany1 space
-
 
 {-- Character parsing, including special named chars --}
 parseChar :: Parser LispVal
