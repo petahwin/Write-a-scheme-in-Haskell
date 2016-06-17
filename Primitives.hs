@@ -75,7 +75,6 @@ eqv badArgList = throwError $ NumArgs 2 badArgList
 
 boolBinop :: (LispVal -> ThrowsError a) -> (a -> a -> Bool) -> [LispVal] ->
                 ThrowsError LispVal
-
 boolBinop unpacker op args = if length args /= 2
                              then throwError $ NumArgs 2 args
                              else do left  <- unpacker $ args !! 0
@@ -85,6 +84,22 @@ boolBinop unpacker op args = if length args /= 2
 numBoolBinop  = boolBinop unpackNum
 strBoolBinop  = boolBinop unpackStr
 boolBoolBinop = boolBinop unpackBool
+
+numericBinop :: (Integer -> Integer -> Integer) -> [LispVal] -> 
+                ThrowsError LispVal
+numericBinop op [] = throwError $ NumArgs 2 []
+numericBinop op singleVal@[_] = throwError $ NumArgs 2 singleVal
+numericBinop op params = mapM unpackNum params >>= return . Number . foldl1 op
+
+unpackNum :: LispVal -> ThrowsError Integer
+unpackNum (Number n) = return n
+unpackNum (String n) = let parsed = reads n in
+                           if null parsed
+                               then throwError $ TypeMismatch "number" $ String n
+                               else return $ fst $ parsed !! 0
+
+unpackNum (List [n]) = unpackNum n
+unpackNum notNum = throwError $ TypeMismatch "number" notNum
 
 unpackStr :: LispVal -> ThrowsError String
 unpackStr (String s) = return s
@@ -115,21 +130,4 @@ symToStr _ = String "YOU SUCK"
 strToSym :: [LispVal] -> LispVal
 strToSym [String s] = Atom s
 strToSym _ = Atom "YOU SUCK2"
-
-numericBinop :: (Integer -> Integer -> Integer) -> [LispVal] -> 
-                ThrowsError LispVal
-
-numericBinop op [] = throwError $ NumArgs 2 []
-numericBinop op singleVal@[_] = throwError $ NumArgs 2 singleVal
-numericBinop op params = mapM unpackNum params >>= return . Number . foldl1 op
-
-unpackNum :: LispVal -> ThrowsError Integer
-unpackNum (Number n) = return n
-unpackNum (String n) = let parsed = reads n in
-                           if null parsed
-                               then throwError $ TypeMismatch "number" $ String n
-                               else return $ fst $ parsed !! 0
-
-unpackNum (List [n]) = unpackNum n
-unpackNum notNum = throwError $ TypeMismatch "number" notNum
 

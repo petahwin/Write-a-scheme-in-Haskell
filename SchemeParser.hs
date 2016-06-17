@@ -7,6 +7,17 @@ import Numeric (readHex, readOct)
 import Data.Char (toLower, toUpper)
 import Defs (LispVal(..))
 
+{-- Putting it all together for an expression parser --}
+parseExpr :: Parser LispVal
+parseExpr = parseAtom 
+        <|> parseQuoted
+        <|> parseString 
+        <|> try parseBool -- is this cheating? Is this too easy or inelegant?
+        <|> try parseNumber 
+        <|> try parseChar
+        <|> ( char '(' >> (try parseList <|> parseDottedList) >>= \x -> char ')' 
+              >> return x )
+
 symbol :: Parser Char
 symbol = oneOf "!$%&*+-./:<=>?@^_~"
 
@@ -105,16 +116,4 @@ parseDottedList = endBy parseExpr spaces >>= \head ->
 {-- Scheme symbols (NOT identifiers, but like Ruby symbols) --}
 parseQuoted :: Parser LispVal
 parseQuoted = char '\'' >> parseExpr >>= \x -> return $ List [Atom "quote", x]
-
-{-- Putting it all together for an expression parser --}
-
-parseExpr :: Parser LispVal
-parseExpr = parseAtom 
-        <|> parseQuoted
-        <|> parseString 
-        <|> try parseBool -- is this cheating? Is this too easy or inelegant?
-        <|> try parseNumber 
-        <|> try parseChar
-        <|> ( char '(' >> (try parseList <|> parseDottedList) >>= \x -> char ')' 
-              >> return x )
 
