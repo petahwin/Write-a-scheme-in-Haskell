@@ -33,10 +33,10 @@ primitives = [("+",         numericBinop (+)),
               ("cons",      cons),
               ("eq?",       eqv),
               ("eqv?",      eqv),
-              ("string?",   isString)]
---              ("symbol?", isSymbol),
---              ("symbol->string", symToStr),
---              ("string->symbol", strToSym)]
+              ("string?",   isString),
+              ("symbol?", isSymbol),
+              ("symbol->string", symToStr),
+              ("string->symbol", strToSym)]
 
 car :: [LispVal] -> ThrowsError LispVal
 car [List (x:xs)]      = return x
@@ -119,15 +119,19 @@ isString :: [LispVal] -> ThrowsError LispVal
 isString [(String _)] = return $ Bool True
 isString _ = return $ Bool False
 
-isSymbol :: [LispVal] -> LispVal
-isSymbol [Atom _] = Bool True
-isSymbol _ = Bool False
+isSymbol :: [LispVal] -> ThrowsError LispVal
+isSymbol [Atom _] = return $ Bool True
+isSymbol _ = return $ Bool False
 
-symToStr :: [LispVal] -> LispVal
-symToStr [Atom s] = String s
-symToStr _ = String "YOU SUCK"
+symToStr :: [LispVal] -> ThrowsError LispVal
+symToStr [Atom s] = return $ String s
+symToStr xs = throwError $ TypeMismatch "symbol" $ if length xs > 0 
+                                                   then head xs
+                                                   else String "nothing"
 
-strToSym :: [LispVal] -> LispVal
-strToSym [String s] = Atom s
-strToSym _ = Atom "YOU SUCK2"
+strToSym :: [LispVal] -> ThrowsError LispVal
+strToSym [String s] = return $ Atom s
+strToSym xs = throwError $ TypeMismatch "string" $ if length xs > 0
+                                                   then head xs
+                                                   else String "nothing"
 

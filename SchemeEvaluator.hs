@@ -35,13 +35,11 @@ eval env (List (Atom "lambda" : DottedList params varargs : body)) =
 eval env (List (Atom "lambda" : varargs@(Atom _) : body)) = 
     makeVarArgs varargs env [] body
 
--- eval env (List (Atom func : args)) = mapM (eval env) args >>= liftThrows . 
--- apply func
+-- Just have it return its string representation for now
+eval env (List (Atom "let" : List bindings : body)) = return $ String "LetExp"
 
-eval env (List (function : args)) = do
-    func <- eval env function
-    argVals <- mapM (eval env) args
-    apply func argVals
+eval env (List (function : args)) = eval env function    >>= \func ->
+                                    traverse (eval env) args >>= apply func
 
 eval env badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
@@ -51,14 +49,15 @@ apply (Func params varargs body closure) args =
     if num params /= num args && varargs == Nothing
         then throwError $ NumArgs (num params) args
         else (liftIO $ bindVars closure $ zip params args) >>= 
-            bindVarArgs varargs >>= evalBody
+             bindVarArgs varargs >>= evalBody
     where remainingArgs = drop (length params) args
           num = toInteger . length
-          evalBody env = liftM last $ mapM (eval env) body
+          evalBody env = fmap last $ traverse (eval env) body
           bindVarArgs arg env = case arg of
               Just argName -> liftIO $ bindVars env [(argName, List $ 
                                                       remainingArgs)]
               Nothing -> return env
+apply val _ = throwError $ NotFunction "Not a function, dummy" $ show val
 
 isBound :: Env -> String -> IO Bool
 isBound envRef var = readIORef envRef >>= return . maybe False (const True) .
@@ -87,9 +86,11 @@ defineVar envRef var value = do
                          writeIORef envRef ((var, valueRef) : env)
                          return value
 
+-- Creates a new IORef consisting of the existing env, plus new bound vars
+-- Does NOT modify existing ref
 bindVars :: Env -> [(String, LispVal)] -> IO Env
 bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
-    where extendEnv bindings env = liftM (++ env) (mapM addBinding bindings)
+    where extendEnv bindings env = fmap (++ env) (traverse addBinding bindings)
           addBinding (var, value) = do ref <- newIORef value
                                        return (var, ref)
 
