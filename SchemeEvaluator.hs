@@ -103,6 +103,9 @@ defineVar envRef var value = do
 
 -- Creates a new IORef consisting of the existing env, plus new bound vars
 -- Does NOT modify existing ref
+-- TODO: May need to modify or refactor for let exprs when a bound var is referenced
+-- on the rhs, or when bindings refer to unbound vars
+-- We want to evaluate the rhs's
 bindVars :: Env -> [(String, LispVal)] -> IO Env
 bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
     where extendEnv bindings env = fmap (++ env) (traverse addBinding bindings)
@@ -113,8 +116,15 @@ primitiveBindings :: IO Env
 primitiveBindings = nullEnv >>= (flip bindVars $ map makePrimitiveFunc primitives)
                     where makePrimitiveFunc (var, func) = (var, PrimitiveFunc func)
 
--- Verify that function formal params are atoms, otherwise fail
-makeFunc varargs env params body = return $ Func (fmap showVal params) varargs body env
+makeFunc :: Maybe String -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+makeFunc varargs env params body = 
+    if all isAtom params
+    then return $ Func (fmap showVal params) varargs body env 
+    else throwError $ TypeMismatch "atom" $ fromJust . find (not . isAtom) $ params
+    where isAtom (Atom _) = True
+          isAtom _ = False
+          
+
 makeNormalFunc = makeFunc Nothing
 makeVarArgs = makeFunc . Just . showVal 
 
