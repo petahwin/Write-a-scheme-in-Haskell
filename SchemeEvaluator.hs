@@ -3,6 +3,8 @@ import System.IO
 import System.Environment
 import Control.Monad.Except
 import Data.IORef
+import Data.List
+import Data.Maybe
 import Text.ParserCombinators.Parsec
 
 import Defs
@@ -36,12 +38,25 @@ eval env (List (Atom "lambda" : varargs@(Atom _) : body)) =
     makeVarArgs varargs env [] body
 
 -- Just have it return its string representation for now
-eval env (List (Atom "let" : List bindings : body)) = return $ String "LetExp"
+eval env (List (Atom "let" : List bindings : body)) =  
+    resolveLet env bindings body
+-- We'll want to create a sub_env, and run the body in its context
 
 eval env (List (function : args)) = eval env function    >>= \func ->
                                     traverse (eval env) args >>= apply func
 
 eval env badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
+
+resolveLet :: Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+resolveLet env bindings body = 
+    if all isBinding bindings then
+    (liftIO $ bindVars env (fmap convBinding bindings)) >>= evalBody
+    else throwError $ BadSpecialForm "Incorrect let binding format" $ getBadBinding bindings
+    where getBadBinding = fromJust . find (not . isBinding) 
+          evalBody env = fmap last $ traverse (eval env) body
+          convBinding (List [atom, expr]) = (showVal atom, expr)
+          isBinding (List [Atom _, expr]) = True
+          isBinding _ = False
 
 apply :: LispVal -> [LispVal] -> IOThrowsError LispVal
 apply (PrimitiveFunc func) args = liftThrows $ func args
@@ -98,7 +113,8 @@ primitiveBindings :: IO Env
 primitiveBindings = nullEnv >>= (flip bindVars $ map makePrimitiveFunc primitives)
                     where makePrimitiveFunc (var, func) = (var, PrimitiveFunc func)
 
-makeFunc varargs env params body = return $ Func (map showVal params) varargs body env
+-- Verify that function formal params are atoms, otherwise fail
+makeFunc varargs env params body = return $ Func (fmap showVal params) varargs body env
 makeNormalFunc = makeFunc Nothing
 makeVarArgs = makeFunc . Just . showVal 
 
