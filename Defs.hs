@@ -14,7 +14,6 @@ data LispVal =  Atom String
               | PrimitiveFunc ([LispVal] -> ThrowsError LispVal)
               | Func { params :: [String], vararg :: (Maybe String),
                        body :: [LispVal], closure :: Env }
-              | Let { locs :: [(String, LispVal)], body :: [LispVal] }
 
 type ThrowsError = Either LispError
 data LispError = NumArgs Integer [LispVal]
@@ -45,10 +44,6 @@ showVal (Func {params = args, vararg = varargs, body = body, closure = env}) =
         (case varargs of
             Nothing -> ""
             Just arg -> " . " ++ arg) ++ ") ...)"
--- For debug/dev purposes only, in prod 'let' expr will always be evaluated
--- to one of the other forms
-showVal (Let {locs = bindings, body = body}) = 
-    "Let ( " ++ (concatMap (\x -> "["++ x ++ "] ") $ fst $ unzip bindings) ++ ")"
 
 instance Show LispError where show = showError
 showError :: LispError -> String

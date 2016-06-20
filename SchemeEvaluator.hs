@@ -50,11 +50,13 @@ eval env badForm = throwError $ BadSpecialForm "Unrecognized special form" badFo
 resolveLet :: Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
 resolveLet env bindings body = 
     if all isBinding bindings then
-    (liftIO $ bindVars env (fmap convBinding bindings)) >>= evalBody
+    fmap (zip atoms) evaledRHSs >>= liftIO . bindVars env >>= evalBody
     else throwError $ BadSpecialForm "Incorrect let binding format" $ getBadBinding bindings
     where getBadBinding = fromJust . find (not . isBinding) 
           evalBody env = fmap last $ traverse (eval env) body
-          convBinding (List [atom, expr]) = (showVal atom, expr)
+          convBinding (List [atom, expr]) = (atom, expr)
+          atoms = fst . unzip $ fmap ((\(x,y) -> (showVal x, y)) . convBinding) bindings
+          evaledRHSs = traverse (eval env) . snd . unzip $ fmap convBinding bindings
           isBinding (List [Atom _, expr]) = True
           isBinding _ = False
 
@@ -103,9 +105,6 @@ defineVar envRef var value = do
 
 -- Creates a new IORef consisting of the existing env, plus new bound vars
 -- Does NOT modify existing ref
--- TODO: May need to modify or refactor for let exprs when a bound var is referenced
--- on the rhs, or when bindings refer to unbound vars
--- We want to evaluate the rhs's
 bindVars :: Env -> [(String, LispVal)] -> IO Env
 bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
     where extendEnv bindings env = fmap (++ env) (traverse addBinding bindings)
