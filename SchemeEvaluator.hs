@@ -39,7 +39,10 @@ eval env (List (Atom "lambda" : varargs@(Atom _) : body)) =
 
 -- Just have it return its string representation for now
 eval env (List (Atom "let" : List bindings : body)) =  
-    resolveLet env bindings body
+    resolveLet env bindings body False -- Abstract away the bool, has no abstract meaning
+
+eval env (List (Atom "let*" : List bindings : body)) =  
+    resolveLet env bindings body True
 -- We'll want to create a sub_env, and run the body in its context
 
 eval env (List (function : args)) = eval env function    >>= \func ->
@@ -47,16 +50,18 @@ eval env (List (function : args)) = eval env function    >>= \func ->
 
 eval env badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
-resolveLet :: Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
-resolveLet env bindings body = 
+resolveLet :: Env -> [LispVal] -> [LispVal] -> Bool -> IOThrowsError LispVal
+resolveLet env bindings body inc = 
     if all isBinding bindings then
-    fmap (zip atoms) evaledRHSs >>= liftIO . bindVars env >>= evalBody
+        if inc then foldl (\x y -> x >>= flip bindVar y) (return env) 
+                          (fmap convBinding bindings) >>= evalBody
+        else fmap (reverse . zip atoms) evaledRHSs >>= liftIO . bindVars env >>= evalBody
     else throwError $ BadSpecialForm "Incorrect let binding format" $ getBadBinding bindings
     where getBadBinding = fromJust . find (not . isBinding) 
           evalBody env = fmap last $ traverse (eval env) body
-          convBinding (List [atom, expr]) = (atom, expr)
-          atoms = fst . unzip $ fmap ((\(x,y) -> (showVal x, y)) . convBinding) bindings
-          evaledRHSs = traverse (eval env) . snd . unzip $ fmap convBinding bindings
+          convBinding (List [atom, expr]) = (showVal atom, expr)
+          atoms = fst . unzip $ fmap convBinding $ bindings
+          evaledRHSs = traverse (eval env) . snd . unzip $ fmap convBinding $ bindings
           isBinding (List [Atom _, expr]) = True
           isBinding _ = False
 
@@ -102,6 +107,12 @@ defineVar envRef var value = do
                          env <- readIORef envRef
                          writeIORef envRef ((var, valueRef) : env)
                          return value
+
+bindVar :: Env -> (String, LispVal) -> IOThrowsError Env
+bindVar envRef (var, val) = eval envRef val            >>= \eVal ->
+                            liftIO $ (readIORef envRef >>= \env  ->
+                                      newIORef eVal    >>= \ref  ->
+                                      newIORef ((var,ref) : env))
 
 -- Creates a new IORef consisting of the existing env, plus new bound vars
 -- Does NOT modify existing ref
