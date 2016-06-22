@@ -9,14 +9,17 @@ import Defs (LispVal(..))
 
 {-- Putting it all together for an expression parser --}
 parseExpr :: Parser LispVal
-parseExpr = parseAtom 
+parseExpr = skipMany space >> 
+           (parseAtom 
         <|> parseQuoted
         <|> parseString 
         <|> try parseBool -- is this cheating? Is this too easy or inelegant?
         <|> try parseNumber 
         <|> try parseChar
-        <|> ( char '(' >> (try parseList <|> parseDottedList) >>= \x -> char ')' 
-              >> return x )
+        <|> ( char '(' >> skipMany space >> (try parseList <|> parseDottedList) >>= \x -> char ')' 
+              >> return x )) >>= \res -> 
+            skipMany space >> 
+            return res
 
 symbol :: Parser Char
 symbol = oneOf "!$%&*+-./:<=>?@^_~"
@@ -106,7 +109,8 @@ parseOct = char 'o' >>
 
 {-- (Dotted) List parsing --}
 parseList :: Parser LispVal
-parseList = fmap List $ sepBy parseExpr spaces
+parseList = fmap List $ endMultiBy parseExpr spaces
+            where endMultiBy p sep = many $ p >>= \x -> many sep >> return x
 
 parseDottedList :: Parser LispVal
 parseDottedList = endBy parseExpr spaces >>= \head ->

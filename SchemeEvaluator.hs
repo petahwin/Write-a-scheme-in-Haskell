@@ -163,18 +163,23 @@ evalAndPrint env expr = evalString env expr >>= putStrLn
 runOne :: String -> IO ()
 runOne expr = primitiveBindings >>= flip evalAndPrint expr
 
-until_ :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
-until_ pred prompt action = do result <- prompt
-                               if pred result
-                                  then return ()
-                                  else action result >> until_ pred prompt action
+until_ :: (String -> Bool) -> IO String -> (String -> IO ()) -> String -> IO ()
+until_ pred prompt action prefix = prompt >>= \result ->
+                            if pred result
+                            then return () else 
+                            let newResult = prefix ++ (' ' : result) in
+                            if matchParens newResult
+                            then action newResult >> until_ pred (readPrompt "Lisp>>> ") action ""
+                            else until_ pred getLine action newResult
+                        where matchParens xs = (length . filter (== '(') $ xs) == 
+                                               (length . filter (== ')') $ xs) 
 
 readPrompt :: String -> IO String
 readPrompt prompt = let flushStr str = putStr str >> hFlush stdout in
                     flushStr prompt >> getLine
 
 runRepl :: IO ()
-runRepl = primitiveBindings >>= until_ (== "quit") (readPrompt "Lisp>>> ") . 
+runRepl = primitiveBindings >>= flip (until_ (== "quit") (readPrompt "Lisp>>> ")) "" . 
           evalAndPrint
 
 main :: IO ()
