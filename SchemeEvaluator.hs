@@ -1,6 +1,7 @@
 module Main where
 import System.IO
 import System.Environment
+import Control.Monad
 import Control.Monad.Except
 import Data.IORef
 import Data.List
@@ -53,8 +54,7 @@ eval env badForm = throwError $ BadSpecialForm "Unrecognized special form" badFo
 resolveLet :: Env -> [LispVal] -> [LispVal] -> Bool -> IOThrowsError LispVal
 resolveLet env bindings body inc = 
     if all isBinding bindings then
-        if inc then foldl (\x y -> x >>= flip bindVar y) (return env) 
-                          (fmap convBinding bindings) >>= evalBody
+        if inc then foldM bindVar env (fmap convBinding bindings) >>= evalBody
         else fmap (reverse . zip atoms) evaledRHSs >>= liftIO . bindVars env >>= evalBody
     else throwError $ BadSpecialForm "Incorrect let binding format" $ getBadBinding bindings
     where getBadBinding = fromJust . find (not . isBinding) 
@@ -109,10 +109,10 @@ defineVar envRef var value = do
                          return value
 
 bindVar :: Env -> (String, LispVal) -> IOThrowsError Env
-bindVar envRef (var, val) = eval envRef val            >>= \eVal ->
-                            liftIO $ (readIORef envRef >>= \env  ->
-                                      newIORef eVal    >>= \ref  ->
-                                      newIORef ((var,ref) : env))
+bindVar envRef (var, val) = eval envRef val           >>= \eVal ->
+                            liftIO $ readIORef envRef >>= \env  ->
+                                     newIORef eVal    >>= \ref  ->
+                                     newIORef ((var,ref) : env)
 
 -- Creates a new IORef consisting of the existing env, plus new bound vars
 -- Does NOT modify existing ref
