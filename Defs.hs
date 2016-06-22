@@ -55,7 +55,7 @@ showError (NumArgs expected found) = "Expected " ++ show expected ++
                                      (unwords . map showVal) found ++ "]"
 showError (TypeMismatch expected found) = "Invalid type: expected " ++ expected
                                         ++ ", found " ++ show found
-showError (Parser parseErr) = "Parse error at" ++ show parseErr
+showError (Parser parseErr) = "Parse error at " ++ show parseErr
 
 nullEnv :: IO Env
 nullEnv = newIORef []

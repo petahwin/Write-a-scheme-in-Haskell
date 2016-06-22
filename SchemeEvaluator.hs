@@ -143,7 +143,7 @@ liftThrows (Left err) = throwError err
 liftThrows (Right val) = return val
 
 runIOThrows :: IOThrowsError String -> IO String
-runIOThrows action = let trapError action = action `catchError` (return . show) 
+runIOThrows action = let trapError action = action `catchError` (return . ("Error: " ++) . show) 
                          extractValue (Right val) = val in
                      runExceptT (trapError action) >>= return . extractValue
 
@@ -154,7 +154,8 @@ readExpr input = case parse (parseExpr <* eof) "lisp" input of
     Right val -> return val
 
 evalString :: Env -> String -> IO String
-evalString env expr = runIOThrows $ fmap show $ (liftThrows $ readExpr expr) >>= eval env
+evalString env expr = runIOThrows $ fmap (("=> " ++) . show) $ 
+                          (liftThrows $ readExpr expr) >>= eval env
 
 evalAndPrint :: Env -> String -> IO ()
 evalAndPrint env expr = evalString env expr >>= putStrLn
