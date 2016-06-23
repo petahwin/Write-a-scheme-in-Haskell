@@ -3,6 +3,7 @@ import System.IO
 import System.Environment
 import Control.Monad
 import Control.Monad.Except
+import Data.Char
 import Data.IORef
 import Data.List
 import Data.Maybe
@@ -179,7 +180,7 @@ runOne expr = primitiveBindings >>= flip evalAndPrint expr
 -- Maybe use monadplus to ad infinitum hold until something of value is passed
 -- into stdin
 until_ :: (String -> Bool) -> IO String -> (String -> IO ()) -> String -> IO ()
-until_ pred prompt action prefix = prompt >>= \result ->
+until_ pred prompt action prefix = while (all isSpace) prompt >>= \result ->
                             if pred result
                             then return () else 
                             let newResult = prefix ++ (' ' : result) in
@@ -188,6 +189,9 @@ until_ pred prompt action prefix = prompt >>= \result ->
                             else until_ pred (readPrompt "... ") action newResult
                         where matchParens xs = (length . filter (== '(') $ xs) <= 
                                                (length . filter (== ')') $ xs) 
+                              while pred action = action >>= \expr ->
+                                                  if pred expr then while pred action
+                                                  else return expr
 
 readPrompt :: String -> IO String
 readPrompt prompt = let flushStr str = putStr str >> hFlush stdout in
