@@ -1,7 +1,9 @@
 module Defs where
 
-import Text.ParserCombinators.Parsec(ParseError)
+import Control.Monad.Except
 import Data.IORef
+import Text.ParserCombinators.Parsec(ParseError)
+import System.IO
 
 data LispVal =  Atom String
               | List [LispVal] -- proper list
@@ -12,10 +14,14 @@ data LispVal =  Atom String
               | Bool Bool 
               | Char Char
               | PrimitiveFunc ([LispVal] -> ThrowsError LispVal)
+              | IOFunc ([LispVal] -> IOThrowsError LispVal)
               | Func { params :: [String], vararg :: (Maybe String),
                        body :: [LispVal], closure :: Env }
+              | Port Handle
 
 type ThrowsError = Either LispError
+type IOThrowsError = ExceptT LispError IO
+
 data LispError = NumArgs Integer [LispVal]
                | TypeMismatch String LispVal
                | Parser ParseError
@@ -39,11 +45,13 @@ showVal (List contents) = "(" ++ (unwords . map showVal) contents ++ ")"
 showVal (DottedList head tail) = "(" ++ (unwords . map showVal) head 
                                      ++ " . " ++ showVal tail ++ ")"
 showVal (PrimitiveFunc _) = "<primitive>"
+showVal (IOFunc _) = "<IO primitive>"
 showVal (Func {params = args, vararg = varargs, body = body, closure = env}) =
     "(lambda (" ++ unwords (map show args) ++ 
         (case varargs of
             Nothing -> ""
             Just arg -> " . " ++ arg) ++ ") ...)"
+showVal (Port _) = "<IO port>"
 
 instance Show LispError where show = showError
 showError :: LispError -> String

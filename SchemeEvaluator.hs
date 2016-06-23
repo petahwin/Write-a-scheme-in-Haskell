@@ -12,9 +12,11 @@ import Defs
 import Primitives
 import SchemeParser 
 
-type IOThrowsError = ExceptT LispError IO
 
 eval :: Env -> LispVal -> IOThrowsError LispVal
+eval env (List [Atom "load", String filename]) =
+    load filename >>= fmap last . traverse (eval env)
+
 eval env val@(String _) = return val
 eval env val@(Number _) = return val
 eval env val@(Bool _) = return val
@@ -51,6 +53,9 @@ eval env (List (function : args)) = eval env function    >>= \func ->
 
 eval env badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
+load :: String -> IOThrowsError [LispVal]
+load filename = (liftIO $ readFile filename) >>= liftThrows . readExprList
+
 resolveLet :: Env -> [LispVal] -> [LispVal] -> Bool -> IOThrowsError LispVal
 resolveLet env bindings body inc = 
     if all isBinding bindings then
@@ -67,6 +72,7 @@ resolveLet env bindings body inc =
 
 apply :: LispVal -> [LispVal] -> IOThrowsError LispVal
 apply (PrimitiveFunc func) args = liftThrows $ func args
+apply (IOFunc func) args = func args
 apply (Func params varargs body closure) args = 
     if num params /= num args && varargs == Nothing
         then throwError $ NumArgs (num params) args
@@ -123,8 +129,11 @@ bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
                                        return (var, ref)
 
 primitiveBindings :: IO Env
-primitiveBindings = nullEnv >>= (flip bindVars $ map makePrimitiveFunc primitives)
-                    where makePrimitiveFunc (var, func) = (var, PrimitiveFunc func)
+primitiveBindings = {-nullEnv >>= (flip bindVars $ map makePrimitiveFunc primitives)
+                    where makePrimitiveFunc (var, func) = (var, PrimitiveFunc func)-}
+                    nullEnv >>= (flip bindVars $ map (makeFunc IOFunc) ioPrimitives 
+                                ++ map (makeFunc PrimitiveFunc) primitives)
+                    where makeFunc constructor (var, func) = (var, constructor func)
 
 makeFunc :: Maybe String -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
 makeFunc varargs env params body = 
@@ -148,10 +157,14 @@ runIOThrows action = let trapError action = action `catchError` (return . ("Erro
                      runExceptT (trapError action) >>= return . extractValue
 
 {-- Our current evaluator, merely just prints out the expr --}
-readExpr :: String -> ThrowsError LispVal
-readExpr input = case parse (parseExpr <* eof) "lisp" input of
-    Left err -> throwError $ Parser err
-    Right val -> return val
+readOrThrow :: Parser a -> String -> ThrowsError a
+readOrThrow parser input = case parse (parser <* eof) "lisp" input of
+                                Left err -> throwError $ Parser err
+                                Right val -> return val
+
+readExpr = readOrThrow parseExpr
+readExprList = readOrThrow $ endBy parseExpr spaces
+
 
 evalString :: Env -> String -> IO String
 evalString env expr = runIOThrows $ fmap (("=> " ++) . show) $ 
@@ -163,15 +176,17 @@ evalAndPrint env expr = evalString env expr >>= putStrLn
 runOne :: String -> IO ()
 runOne expr = primitiveBindings >>= flip evalAndPrint expr
 
+-- Maybe use monadplus to ad infinitum hold until something of value is passed
+-- into stdin
 until_ :: (String -> Bool) -> IO String -> (String -> IO ()) -> String -> IO ()
 until_ pred prompt action prefix = prompt >>= \result ->
                             if pred result
                             then return () else 
                             let newResult = prefix ++ (' ' : result) in
                             if matchParens newResult
-                            then action newResult >> until_ pred (readPrompt "Lisp>>> ") action ""
-                            else until_ pred getLine action newResult
-                        where matchParens xs = (length . filter (== '(') $ xs) == 
+                            then action newResult >> until_ pred (readPrompt "> ") action ""
+                            else until_ pred (readPrompt "... ") action newResult
+                        where matchParens xs = (length . filter (== '(') $ xs) <= 
                                                (length . filter (== ')') $ xs) 
 
 readPrompt :: String -> IO String
@@ -179,7 +194,7 @@ readPrompt prompt = let flushStr str = putStr str >> hFlush stdout in
                     flushStr prompt >> getLine
 
 runRepl :: IO ()
-runRepl = primitiveBindings >>= flip (until_ (== "quit") (readPrompt "Lisp>>> ")) "" . 
+runRepl = primitiveBindings >>= flip (until_ (== "quit") (readPrompt "> ")) "" . 
           evalAndPrint
 
 main :: IO ()

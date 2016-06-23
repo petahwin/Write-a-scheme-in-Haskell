@@ -1,7 +1,7 @@
-module Primitives(primitives) where
+module Primitives(primitives, ioPrimitives) where
 
 import Control.Monad.Except
-import Defs (LispVal(..), LispError(..), ThrowsError)
+import Defs (LispVal(..), LispError(..), ThrowsError, IOThrowsError)
 
 primitives :: [(String, [LispVal] -> ThrowsError LispVal)]
 primitives = [("+",         numericBinop (+)),
@@ -134,4 +134,17 @@ strToSym [String s] = return $ Atom s
 strToSym xs = throwError $ TypeMismatch "string" $ if length xs > 0
                                                    then head xs
                                                    else String "nothing"
+
+-- ioPrimitives :: [(String, [LispVal] -> IOThrowsError LispVal)]
+-- ioPrimitives = [("open"
+--("apply", applyProc)
+-- ]
+ioPrimitives = []
+{-
+
+Identity crisis: do I implement the control structures via the primitives list,
+                 or do I leverage the structure of the list and implement it
+                 in the evaluation step without a primitive call?
+
+-}
 
