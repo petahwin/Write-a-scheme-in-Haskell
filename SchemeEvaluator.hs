@@ -1,13 +1,14 @@
 module Main where
 import System.IO
 import System.Environment
+import Control.Exception(try)
 import Control.Monad
 import Control.Monad.Except
 import Data.Char
 import Data.IORef
 import Data.List
 import Data.Maybe
-import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec(Parser, parse, eof, endBy, spaces)
 
 import Defs
 import Primitives
@@ -55,7 +56,11 @@ eval env (List (function : args)) = eval env function    >>= \func ->
 eval env badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
 load :: String -> IOThrowsError [LispVal]
-load filename = (liftIO $ readFile filename) >>= liftThrows . readExprList
+load filename = (readOrCatch filename) >>= liftThrows . readExprList
+                where readOrCatch file = ExceptT $ (try $ readFile file) >>= \res -> 
+                                         return $ case res of
+                                             Left excep -> Left $ BadIO excep
+                                             Right str  -> Right str
 
 resolveLet :: Env -> [LispVal] -> [LispVal] -> Bool -> IOThrowsError LispVal
 resolveLet env bindings body inc = 

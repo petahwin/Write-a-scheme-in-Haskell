@@ -28,6 +28,7 @@ data LispError = NumArgs Integer [LispVal]
                | BadSpecialForm String LispVal
                | NotFunction String String
                | UnboundVar String String
+               | BadIO IOError
                | Default String
 
 type Env = IORef [(String, IORef LispVal)]
@@ -64,6 +65,7 @@ showError (NumArgs expected found) = "Expected " ++ show expected ++
 showError (TypeMismatch expected found) = "Invalid type: expected " ++ expected
                                         ++ ", found " ++ show found
 showError (Parser parseErr) = "Parse error at " ++ show parseErr
+showError (BadIO ioError) = show ioError
 
 nullEnv :: IO Env
 nullEnv = newIORef []
